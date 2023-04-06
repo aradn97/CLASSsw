@@ -395,7 +395,7 @@ int background_functions(
   /* index for n_ncdm species */
   int n_ncdm;
   /* fluid's time-dependent equation of state parameter */
-  double w_fld, dw_over_da, integral_fld;
+  double w_fld, dw_over_da, integral_fld, w_sdm; //swflg
   /* scalar field quantities */
   double phi, phi_prime;
   /* Since we only know a_prime_over_a after we have rho_tot,
@@ -455,7 +455,10 @@ int background_functions(
     /* Pass value of rho_dcdm to output */
     pvecback[pba->index_bg_rho_dcdm] = pvecback_B[pba->index_bi_rho_dcdm];
     rho_tot += pvecback[pba->index_bg_rho_dcdm];
-    p_tot += 0.;
+    //p_tot += 0.; //swflg
+    w_sdm = pvecback_B[pba->index_bg_w_dcdm]; //swflg
+    pvecback[pba->index_bg_w_dcdm] = w_sdm; //swflg : this is the redundant part where B is also saved in A quantities
+    p_tot += w_sdm * pvecback[pba->index_bg_rho_dcdm]; //swflg
     rho_m += pvecback[pba->index_bg_rho_dcdm];
   }
 
@@ -1055,6 +1058,7 @@ int background_indices(
 
   /* - index for dcdm */
   class_define_index(pba->index_bg_rho_dcdm,pba->has_dcdm,index_bg,1);
+  class_define_index(pba->index_bg_w_dcdm,pba->has_dcdm,index_bg,1);  //swflg
 
   /* - index for dr */
   class_define_index(pba->index_bg_rho_dr,pba->has_dr,index_bg,1);
@@ -1154,6 +1158,7 @@ int background_indices(
 
   /* -> energy density in DCDM */
   class_define_index(pba->index_bi_rho_dcdm,pba->has_dcdm,index_bi,1);
+  class_define_index(pba->index_bi_w_dcdm,pba->has_dcdm,index_bi,1);  //swflg
 
   /* -> energy density in DR */
   class_define_index(pba->index_bi_rho_dr,pba->has_dr,index_bi,1);
@@ -2211,6 +2216,7 @@ int background_initial_conditions(
     /* Remember that the critical density today in CLASS conventions is H0^2 */
     pvecback_integration[pba->index_bi_rho_dcdm] =
       pba->Omega_ini_dcdm*pba->H0*pba->H0*pow(a,-3);
+    pvecback_integration[pba->index_bi_w_dcdm]  = 0.; //swflg
     if (pba->background_verbose > 3)
       printf("Density is %g. Omega_ini=%g\n",pvecback_integration[pba->index_bi_rho_dcdm],pba->Omega_ini_dcdm);
   }
@@ -2453,6 +2459,7 @@ int background_output_titles(
   class_store_columntitle(titles,"(.)rho_idr",pba->has_idr);
   class_store_columntitle(titles,"(.)rho_crit",_TRUE_);
   class_store_columntitle(titles,"(.)rho_dcdm",pba->has_dcdm);
+  class_store_columntitle(titles,"(.)w_dcdm",pba->has_dcdm); //swflg
   class_store_columntitle(titles,"(.)rho_dr",pba->has_dr);
 
   class_store_columntitle(titles,"(.)rho_scf",pba->has_scf);
@@ -2526,6 +2533,7 @@ int background_output_data(
     class_store_double(dataptr,pvecback[pba->index_bg_rho_idr],pba->has_idr,storeidx);
     class_store_double(dataptr,pvecback[pba->index_bg_rho_crit],_TRUE_,storeidx);
     class_store_double(dataptr,pvecback[pba->index_bg_rho_dcdm],pba->has_dcdm,storeidx);
+    class_store_double(dataptr,pvecback[pba->index_bg_w_dcdm],pba->has_dcdm,storeidx); //swflg
     class_store_double(dataptr,pvecback[pba->index_bg_rho_dr],pba->has_dr,storeidx);
 
     class_store_double(dataptr,pvecback[pba->index_bg_rho_scf],pba->has_scf,storeidx);
@@ -2638,7 +2646,9 @@ int background_derivs(
 
   if (pba->has_dcdm == _TRUE_) {
     /** - compute dcdm density \f$ d\rho/dloga = -3 \rho - \Gamma/H \rho \f$*/
-    dy[pba->index_bi_rho_dcdm] = -3.*y[pba->index_bi_rho_dcdm] - pba->Gamma_dcdm/H*y[pba->index_bi_rho_dcdm];
+    //dy[pba->index_bi_rho_dcdm] = -3.*y[pba->index_bi_rho_dcdm] - pba->Gamma_dcdm/H*y[pba->index_bi_rho_dcdm]; //swflg
+    dy[pba->index_bi_rho_dcdm] = -3.*y[pba->index_bi_rho_dcdm]*(1.+y[pba->index_bi_w_dcdm]) + pba->Gamma_dcdm/H*y[pba->index_bi_rho_dcdm]*(1.-23.*y[pba->index_bi_w_dcdm]/2.);  //swflg
+    dy[pba->index_bi_w_dcdm] = -2.*y[pba->index_bi_w_dcdm] + 3.*pow(y[pba->index_bi_w_dcdm],2) + 2./3.* pba->Gamma_dcdm/H - 26./3. * pba->Gamma_dcdm/H * y[pba->index_bi_w_dcdm] + 23/2 * pba->Gamma_dcdm/H*pow(y[pba->index_bi_w_dcdm],2);  //swflg
   }
 
   if ((pba->has_dcdm == _TRUE_) && (pba->has_dr == _TRUE_)) {
